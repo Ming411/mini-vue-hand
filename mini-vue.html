@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+  <div id="app">
+    <h1>插值表达式</h1>
+    <h3>{{msg}}</h3>
+    <h3>{{count}}</h3>
+  </div>
+  <script>
+    class Compiler {
+      constructor(vm) {
+        this.el = vm.$el
+        this.vm = vm
+        this.compile(this.el)
+      }
+      // 编译模板
+      compile (el) {
+        // 获取根元素下的第一层子节点
+        let childNodes = el.childNodes
+        Array.from(childNodes).forEach(node => {
+          if (this.isTextNode(node)) {
+            this.compileText(node)
+          } else if (this.isElementNode(node)) {
+            this.compileElement(node)
+          }
+          // 判断node子节点，进行递归调用
+          if (node.childNodes && node.childNodes.length) {
+            this.compile(node)
+          }
+        })
+      }
+      // 编译元素节点，处理指令
+      compileElement (node) {
+
+      }
+      // 编译文本节点，处理插值表达式
+      compileText (node) {
+        // console.dir(node)
+        let reg = /\{\{(.+?)\}\}/
+        let value = node.textContent
+        if (reg.test(value)) {
+          // 提取元组中第一个
+          let key = RegExp.$1.trim()
+          // 匹配到之后将属性的值替换上去
+          node.textContent = value.replace(reg, this.vm[key])
+        }
+      }
+      // 判断节点是否是指令
+      isDirective (attrName) {
+        return attrName.startsWidth('v-')
+      }
+      // 判断节点是否是文本节点
+      isTextNode (node) {
+        return node.nodeType === 3
+      }
+      // 判断节点是否是元素节点
+      isElementNode (node) {
+        return node.nodeType === 1
+      }
+
+    }
+    class Observer {
+      constructor(data) {
+        this.walk(data)
+      }
+      walk (data) {
+        if (!data || typeof data !== 'object') {
+          return
+        }
+        // 遍历data所有属性
+        Object.keys(data).forEach(key => {
+          this.definReactive(data, key, data[key])
+        })
+      }
+      // 将$data中的属性转为getter setter
+      // 此处直接传递val是为了防止循环调用
+      definReactive (obj, key, val) {
+        this.walk(val)  // 递归data中的对象
+        Object.defineProperty(obj, key, {
+          enumerable: true,
+          configurable: true,
+          get () {
+            return val
+          },
+          set: (newValue) => {
+            if (newValue === val) {
+              return
+            }
+            val = newValue
+            // 解决重新赋值后的对象没有响应式的问题
+            this.walk(newValue)
+          }
+        })
+      }
+    }
+    class Vue {
+      constructor(options) {
+        // 记录传递过来的参数
+        this.options = options || {}
+        this.$data = options.data || {}
+        this.$el = typeof options.el === 'string' ? document.querySelector(options.el) : options.el
+        // 将data转为getter setter并注入vue实例中
+        this._proxyData(this.$data)
+        // 调用obsever监听数据变化
+        new Observer(this.$data)
+        // 调用compiler对象，解析指令和插值表达式
+        new Compiler(this)
+      }
+      _proxyData (data) {
+        Object.keys(data).forEach(key => {
+          Object.defineProperty(this, key, {
+            enumerable: true,
+            configurable: true,
+            get () {
+              return data[key]
+            },
+            set (newValue) {
+              if (newValue === data[key]) {
+                return
+              }
+              data[key] = newValue
+            }
+          })
+        })
+      }
+    }
+  </script>
+  <script>
+    const vm = new Vue({
+      el: '#app',
+      data: {
+        msg: 'whyccc',
+        count: 10,
+        person: {
+          name: 'coder'
+        }
+      }
+    })
+    console.log(vm)
+    console.log(vm.msg)
+    vm.msg = { nickname: 'abc' }
+  </script>
+</body>
+
+</html>
